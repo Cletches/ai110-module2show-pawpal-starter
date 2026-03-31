@@ -5,12 +5,21 @@
 **a. Initial design**
 
 - Briefly describe your initial UML design.
+
+These are the basic classes that I created: Owner (user profile), Pet (animal info), Task (activity details), and Scheduler (the calculation engine).
+
+Relationship: The Owner manages the Pet, which holds a list of Tasks.
+
+Logic: The Scheduler acts as a Controller, taking task data and a time budget to output an optimized daily plan.
+
 - What classes did you include, and what responsibilities did you assign to each?
 
 **b. Design changes**
 
-- Did your design change during implementation?
+- Did your design change during implementation? Yes
 - If yes, describe at least one change and why you made it.
+
+The owner does not hold a task list, we made changes for owner to have a task list. Also there was no connection between scheduler and owner/pet so we corrected that. Also added reasons for selected tasks. Also pets needs were not linked to task selection which we added to make things easier.
 
 ---
 
