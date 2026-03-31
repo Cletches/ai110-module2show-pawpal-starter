@@ -164,20 +164,97 @@ st.subheader("📅 Generate Daily Schedule")
 
 if st.button("Generate Optimized Schedule"):
     if st.session_state.owner:
-        plan = st.session_state.scheduler.optimize_plan(st.session_state.owner)
-        
+        scheduler = st.session_state.scheduler
+        owner = st.session_state.owner
+
+        conflicts = scheduler.detect_time_conflicts(owner)
+        if conflicts:
+            st.warning(
+                f"⚠️ We found {len(conflicts)} overlapping task time(s). "
+                "Review these before starting your day."
+            )
+            st.caption("Overlaps can lead to missed care tasks. Consider moving one task to a nearby open time.")
+            st.table(
+                [
+                    {
+                        "Time": c["time"],
+                        "Task 1": f"{c['pet_1']} - {c['task_1']}",
+                        "Task 2": f"{c['pet_2']} - {c['task_2']}",
+                        "Conflict Type": "Same pet" if c["same_pet"] else "Different pets",
+                    }
+                    for c in conflicts
+                ]
+            )
+        else:
+            st.success("✅ No time conflicts detected. Your task times look clear.")
+
+        plan = scheduler.optimize_plan(owner)
+        selected_by_priority = scheduler.sort_by_priority(plan.selected_tasks)
+        remaining_minutes = owner.daily_time_budget - plan.total_minutes
+
         st.success("✨ Schedule generated!")
-        
         st.write("### 📋 Today's Plan")
-        st.write(f"**Total time allocated:** {plan.total_minutes} / {st.session_state.owner.daily_time_budget} minutes")
-        
-        if plan.selected_tasks:
-            st.write("**Selected tasks (in priority order):**")
-            for i, task in enumerate(plan.selected_tasks, 1):
-                st.write(f"{i}. **{task.title}** ({task.duration_minutes} min) — Priority: {task.priority}/5 | {task.category}")
+        st.write(f"**Total time allocated:** {plan.total_minutes} / {owner.daily_time_budget} minutes")
+        st.write(f"**Remaining time:** {remaining_minutes} minutes")
+
+        if selected_by_priority:
+            pet_name_by_task_id = {
+                id(task): pet.name
+                for pet in owner.get_pets()
+                for task in pet.get_tasks()
+            }
+
+            st.write("**Selected tasks (priority order):**")
+            st.table(
+                [
+                    {
+                        "Pet": pet_name_by_task_id.get(id(task), "Owner"),
+                        "Task": task.title,
+                        "Duration (min)": task.duration_minutes,
+                        "Priority": task.priority,
+                        "Category": task.category,
+                        "Time": getattr(task, "time", ""),
+                    }
+                    for task in selected_by_priority
+                ]
+            )
+
+            timed_selected = [task for task in selected_by_priority if getattr(task, "time", None)]
+            if timed_selected:
+                st.write("**Timed tasks (chronological order):**")
+                st.table(
+                    [
+                        {
+                            "Time": task.time,
+                            "Pet": pet_name_by_task_id.get(id(task), "Owner"),
+                            "Task": task.title,
+                            "Duration (min)": task.duration_minutes,
+                        }
+                        for task in scheduler.sort_by_time(timed_selected)
+                    ]
+                )
+
+            all_available_tasks = owner.tasks + owner.get_all_pet_tasks()
+            selected_ids = {id(task) for task in selected_by_priority}
+            deferred_tasks = [task for task in all_available_tasks if id(task) not in selected_ids]
+            if deferred_tasks:
+                st.write("**Deferred tasks (not selected due to time/priority tradeoffs):**")
+                st.table(
+                    [
+                        {
+                            "Pet": pet_name_by_task_id.get(id(task), "Owner"),
+                            "Task": task.title,
+                            "Duration (min)": task.duration_minutes,
+                            "Priority": task.priority,
+                            "Category": task.category,
+                            "Time": getattr(task, "time", ""),
+                        }
+                        for task in scheduler.sort_by_priority(deferred_tasks)
+                    ]
+                )
         else:
             st.info("No tasks selected for today.")
-        
+
         st.write("### 💡 Plan Explanation")
         st.write(plan.explanation)
     else:

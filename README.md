@@ -1,52 +1,48 @@
-# PawPal+ (Module 2 Project)
+# PawPal+
 
-You are building **PawPal+**, a Streamlit app that helps a pet owner plan care tasks for their pet.
+PawPal+ is a pet care planning app that helps pet owners create realistic daily care schedules.
+It combines task priority, time limits, and conflict checks to produce a plan that is practical to follow.
 
-## Scenario
+## Overview
 
-A busy pet owner needs help staying consistent with pet care. They want an assistant that can:
+PawPal+ lets you:
 
-- Track pet care tasks (walks, feeding, meds, enrichment, grooming, etc.)
-- Consider constraints (time available, priority, owner preferences)
-- Produce a daily plan and explain why it chose that plan
+- Create an owner profile with a daily time budget.
+- Add multiple pets and assign care tasks to each pet.
+- Generate an optimized daily plan based on priority and available time.
+- Detect overlapping task times and show non-blocking warnings.
+- Review selected tasks, timed tasks in chronological order, and deferred tasks.
 
-Your job is to design the system first (UML), then implement the logic in Python, then connect it to the Streamlit UI.
+## Features
 
-## What you will build
+- Priority-first scheduling: Tasks are selected by priority so essential care is handled first.
+- Time-budget enforcement: The plan never exceeds the owner's available daily minutes.
+- Tie-break optimization: For equal priority, shorter tasks are chosen first to fit more work when possible.
+- Sorting by priority: Selected tasks are displayed in priority order for quick review.
+- Sorting by time: Timed tasks are displayed in chronological HH:MM order.
+- Conflict detection: Duplicate HH:MM times are detected across all pet tasks.
+- Cross-pet overlap awareness: Conflicts are flagged for both same-pet and different-pet overlaps.
+- Lightweight conflict warnings: Overlaps generate warnings instead of causing runtime failures.
+- Daily recurrence rollover: Completing a daily recurring task can create the next task for the following day.
+- Weekly recurrence rollover: Completing a weekly recurring task can create the next task one week later.
+- Completion tracking and filtering: Tasks can be marked complete/incomplete and filtered for focused views.
 
-Your final app should:
+## Core Scheduling Behavior
 
-- Let a user enter basic owner + pet info
-- Let a user add/edit tasks (duration + priority at minimum)
-- Generate a daily schedule/plan based on constraints and priorities
-- Display the plan clearly (and ideally explain the reasoning)
-- Include tests for the most important scheduling behaviors
+The scheduler uses a lightweight, transparent strategy:
 
-## Smarter Scheduling
+- Priority-first selection: higher-priority tasks are considered first.
+- Time-budget enforcement: selected tasks must fit the owner's daily minutes.
+- Tie-breaking: for equal priority, shorter tasks are preferred.
+- Time conflict detection: duplicate HH:MM times are flagged for same-pet or cross-pet overlaps.
+- Safe warnings: conflicts return warning messages instead of crashing the app.
 
-Recent scheduler improvements make planning more practical and resilient:
+## Requirements
 
-- Priority-first selection keeps essential care tasks first when time is limited.
-- Time-budget checks ensure selected tasks fit within the owner's available minutes.
-- Task-time conflict detection catches overlapping tasks across the same pet or different pets.
-- Lightweight conflict handling returns a warning message instead of crashing the program.
+- Python 3.11+
+- Dependencies listed in requirements.txt
 
-## Testing PawPal+
-
-Run the automated test suite with:
-
-```bash
-python -m pytest
-```
-
-These tests cover core scheduler and task behaviors, including priority and time-based sorting,
-time-budget planning, task completion status, recurring-task rollover, conflict detection for
-duplicate time slots, and safe warning behavior when schedule conflicts are found.
-Confidence Level - 4
-
-## Getting started
-
-### Setup
+Install dependencies:
 
 ```bash
 python -m venv .venv
@@ -54,12 +50,88 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Suggested workflow
+## Run The App
 
-1. Read the scenario carefully and identify requirements and edge cases.
-2. Draft a UML diagram (classes, attributes, methods, relationships).
-3. Convert UML into Python class stubs (no logic yet).
-4. Implement scheduling logic in small increments.
-5. Add tests to verify key behaviors.
-6. Connect your logic to the Streamlit UI in `app.py`.
-7. Refine UML so it matches what you actually built.
+Start the Streamlit interface:
+
+```bash
+streamlit run app.py
+```
+
+You can also run the CLI/demo flow:
+
+```bash
+python main.py
+```
+
+## How To Use PawPal+
+
+1. Create or update the owner profile.
+2. Add one or more pets.
+3. Add tasks per pet with duration, priority, category, and frequency.
+4. Click Generate Optimized Schedule.
+5. Review:
+
+- Conflict warnings table (if overlaps exist)
+- Selected tasks (priority order)
+- Timed tasks (chronological order)
+- Deferred tasks (excluded by time/priority tradeoffs)
+
+## Testing PawPal+
+
+Run the full automated test suite:
+
+```bash
+python -m pytest
+```
+
+Tests cover:
+
+- Task completion and status transitions
+- Daily/weekly recurrence behavior
+- Sorting correctness (priority and chronological time sorting)
+- Time-budget plan selection
+- Conflict detection for duplicate times
+- Lightweight warning behavior for schedule conflicts
+
+## Project Structure
+
+- app.py: Streamlit user interface
+- main.py: command-line demo script
+- pawpal_system.py: domain classes and scheduler logic
+- tests/test_pawpal.py: unit tests for core behaviors
+
+## Troubleshooting
+
+- Streamlit command not found:
+  Install dependencies first with pip install -r requirements.txt.
+- No tasks selected in a plan:
+  Increase daily budget or lower durations/priorities for current tasks.
+- Conflict warnings shown:
+  Adjust task times to remove overlapping HH:MM entries.
+
+## Notes
+
+PawPal+ is designed for clarity and reliability. The scheduler favors fast, explainable decisions over heavy optimization so pet owners can trust and act on the output quickly.
+
+## Demo
+
+### Overview Screen
+
+![Owner and Pet Setup](Pet%20Care%20Task%20Optimization-2026-03-31-171215.png)
+Overview of the owner profile and pet setup interface.
+
+### Task Selection and Conflict Warnings
+
+![Task Selection](Screenshot%202026-03-31%20at%2012.16.25%20PM.png)
+Selected tasks with conflict detection warnings displayed.
+
+### Scheduling Results
+
+![Schedule Details](Screenshot%202026-03-31%20at%2012.16.32%20PM.png)
+Optimized schedule with selected and deferred tasks in priority order.
+
+### Chronological Task View
+
+![Chronological Order](Screenshot%202026-03-31%20at%2012.16.49%20PM.png)
+Timed tasks displayed in chronological HH:MM order for easy daily planning.
