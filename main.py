@@ -43,7 +43,9 @@ def main():
     print(f"🐕 Pets: {', '.join([p.name for p in owner.get_pets()])}")
     print()
 
-    # ========== CREATE TASKS FOR DOG ==========
+    scheduler = Scheduler()
+
+    # ========== CREATE TASKS FOR DOG (INTENTIONALLY OUT OF ORDER) ==========
     morning_walk = Task(
         title="Morning Walk",
         description="30-minute walk around the neighborhood",
@@ -53,6 +55,7 @@ def main():
         frequency="daily",
         completed=False
     )
+    morning_walk.time = "07:30"
     
     play_fetch = Task(
         title="Play Fetch",
@@ -63,15 +66,28 @@ def main():
         frequency="daily",
         completed=False
     )
+    play_fetch.time = "18:00"
+
+    quick_brush = Task(
+        title="Quick Brush",
+        description="Short coat brushing session",
+        duration_minutes=10,
+        priority=4,
+        category="grooming",
+        frequency="daily",
+        completed=False
+    )
+    quick_brush.time = "12:15"
     
-    dog.add_task(morning_walk)
     dog.add_task(play_fetch)
+    dog.add_task(quick_brush)
+    dog.add_task(morning_walk)
     print(f"🐕 Max's Tasks:")
     for task in dog.get_tasks():
-        print(f"   • {task.title} ({task.duration_minutes} min, Priority: {task.priority})")
+        print(f"   • {task.time} - {task.title} ({task.duration_minutes} min, Priority: {task.priority})")
     print()
 
-    # ========== CREATE TASKS FOR CAT ==========
+    # ========== CREATE TASKS FOR CAT (INTENTIONALLY OUT OF ORDER) ==========
     grooming = Task(
         title="Grooming Session",
         description="Brush fur and trim nails",
@@ -81,6 +97,7 @@ def main():
         frequency="weekly",
         completed=False
     )
+    grooming.time = "20:15"
     
     playtime = Task(
         title="Interactive Play",
@@ -91,6 +108,8 @@ def main():
         frequency="daily",
         completed=False
     )
+    # Intentional overlap with Max's "Play Fetch" to demo conflict warnings.
+    playtime.time = "18:00"
     
     feeding = Task(
         title="Meal Prep & Feeding",
@@ -101,17 +120,77 @@ def main():
         frequency="daily",
         completed=False
     )
+    feeding.time = "08:00"
+
+    litter_check = Task(
+        title="Litter Box Check",
+        description="Clean and refresh litter box",
+        duration_minutes=12,
+        priority=3,
+        category="hygiene",
+        frequency="daily",
+        completed=False
+    )
+    litter_check.time = "06:45"
     
-    cat.add_task(grooming)
     cat.add_task(playtime)
+    cat.add_task(litter_check)
+    cat.add_task(grooming)
     cat.add_task(feeding)
     print(f"🐱 Whiskers's Tasks:")
     for task in cat.get_tasks():
-        print(f"   • {task.title} ({task.duration_minutes} min, Priority: {task.priority})")
+        print(f"   • {task.time} - {task.title} ({task.duration_minutes} min, Priority: {task.priority})")
+    print()
+
+    # ========== DEMO: SORT TASKS BY TIME ==========
+    print("=" * 60)
+    print("🕒 TASKS SORTED BY TIME (ALL PETS)")
+    print("=" * 60)
+    print()
+    all_pet_tasks = owner.get_all_pet_tasks()
+    for task in scheduler.sort_by_time(all_pet_tasks):
+        print(f"   • {task.time} - {task.title} ({task.category})")
+    print()
+
+    # ========== DEMO: FILTER TASKS ==========
+    # Mark one task completed so both filter modes are visible.
+    play_fetch.mark_completed()
+
+    print("=" * 60)
+    print("🔎 FILTERED TASKS")
+    print("=" * 60)
+    print()
+
+    completed_tasks = owner.filter_tasks(completed=True)
+    print("✅ Completed Tasks:")
+    if completed_tasks:
+        for task in completed_tasks:
+            print(f"   • {task.title}")
+    else:
+        print("   • None")
+    print()
+
+    whiskers_open_tasks = owner.filter_tasks(completed=False, pet_name="Whiskers")
+    print("🐱 Whiskers Incomplete Tasks:")
+    if whiskers_open_tasks:
+        for task in whiskers_open_tasks:
+            print(f"   • {task.title}")
+    else:
+        print("   • None")
+    print()
+
+    # ========== DEMO: LIGHTWEIGHT CONFLICT WARNING ==========
+    warning = scheduler.get_conflict_warning(owner)
+    print("=" * 60)
+    print("⚠️  CONFLICT CHECK")
+    print("=" * 60)
+    if warning:
+        print(warning)
+    else:
+        print("No scheduling conflicts found.")
     print()
 
     # ========== GENERATE TODAY'S SCHEDULE ==========
-    scheduler = Scheduler()
     plan = scheduler.optimize_plan(owner)
     
     print("=" * 60)

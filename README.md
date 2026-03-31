@@ -22,6 +22,15 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## Smarter Scheduling
+
+Recent scheduler improvements make planning more practical and resilient:
+
+- Priority-first selection keeps essential care tasks first when time is limited.
+- Time-budget checks ensure selected tasks fit within the owner's available minutes.
+- Task-time conflict detection catches overlapping tasks across the same pet or different pets.
+- Lightweight conflict handling returns a warning message instead of crashing the program.
+
 ## Getting started
 
 ### Setup

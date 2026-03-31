@@ -28,14 +28,25 @@ The owner does not hold a task list, we made changes for owner to have a task li
 **a. Constraints and priorities**
 
 - What constraints does your scheduler consider (for example: time, priority, preferences)?
+
+Time budget: total selected task duration must stay within the owner’s daily available minutes.
+
+Priority: higher-priority tasks are selected first so essential care is not skipped.
+
+Task timing conflicts: if two pet tasks are scheduled at the same HH:MM time, the system flags a warning instead of crashing.
+
 - How did you decide which constraints mattered most?
+  I deceided these mattered most by focusinf on real-world usability and pet safety first. Time and priority directly affect whether a plan is practical and whether important tasks get done.
 
 **b. Tradeoffs**
 
 - Describe one tradeoff your scheduler makes.
+
+Scheduler chooses higher-priority tasks first within the time budget, rather than searching all possible combinations for the absolute best plan.
+
 - Why is that tradeoff reasonable for this scenario?
 
----
+## it keeps decisions fast, predictable, and focused on essential care tasks.
 
 ## 3. AI Collaboration
 

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 
 @dataclass
@@ -63,9 +63,37 @@ class Task:
 		"""Return True when the task priority is inside the 1-5 range."""
 		return 1 <= self.priority <= 5
 
-	def mark_completed(self) -> None:
-		"""Mark this task as completed."""
+	def mark_completed(self, task_collection: Optional[List["Task"]] = None) -> Optional["Task"]:
+		"""
+		Mark this task as completed.
+
+		For recurring tasks with frequency "daily" or "weekly", automatically
+		create the next occurrence. If task_collection is provided, that new task
+		is appended to the collection.
+		"""
 		self.completed = True
+
+		if self.frequency.lower() not in ["daily", "weekly"]:
+			return None
+
+		next_task = Task(
+			title=self.title,
+			description=self.description,
+			duration_minutes=self.duration_minutes,
+			priority=self.priority,
+			category=self.category,
+			frequency=self.frequency,
+			completed=False,
+		)
+
+		# Preserve optional dynamic HH:MM time if the task has one.
+		if hasattr(self, "time"):
+			next_task.time = self.time
+
+		if task_collection is not None:
+			task_collection.append(next_task)
+
+		return next_task
 
 	def mark_incomplete(self) -> None:
 		"""Mark this task as not completed."""
@@ -125,6 +153,27 @@ class Owner:
 		all_tasks = self.get_all_pet_tasks()
 		return [t for t in all_tasks if t.category.lower() == category.lower()]
 
+	def filter_tasks(self, completed: Optional[bool] = None, pet_name: Optional[str] = None) -> List[Task]:
+		"""
+		Return tasks filtered by completion status and/or pet name.
+
+		- If pet_name is provided, only tasks for that pet are considered.
+		- If pet_name is omitted, owner tasks and all pet tasks are considered.
+		- If completed is provided, only tasks matching that completion status are returned.
+		"""
+		if pet_name:
+			pet = self.get_pet_by_name(pet_name)
+			if pet is None:
+				return []
+			candidate_tasks = pet.get_tasks()
+		else:
+			candidate_tasks = list(self.tasks) + self.get_all_pet_tasks()
+
+		if completed is None:
+			return candidate_tasks
+
+		return [task for task in candidate_tasks if task.completed is completed]
+
 	def add_task(self, task: Task) -> None:
 		"""Add a general task to the owner's task list."""
 		self.tasks.append(task)
@@ -143,6 +192,92 @@ class Owner:
 
 class Scheduler:
 	"""Scheduling engine that builds a daily plan from tasks and constraints."""
+
+	def get_conflict_warning(self, owner: Owner) -> Optional[str]:
+		"""
+		Return a non-fatal warning message when schedule conflicts are found.
+
+		Args:
+			owner: Owner whose pet tasks should be analyzed.
+
+		Returns:
+			A warning string when one or more conflicts are detected, None when no
+			conflicts exist, or a fallback warning if conflict analysis cannot run
+			safely due to invalid input data.
+
+		Notes:
+			This method is intentionally lightweight and defensive. It catches
+			unexpected exceptions from conflict analysis so callers can display a
+			message without crashing the program flow.
+		"""
+		try:
+			conflicts = self.detect_time_conflicts(owner)
+		except Exception:
+			return "Warning: Could not evaluate scheduling conflicts due to invalid task data."
+
+		if not conflicts:
+			return None
+
+		first = conflicts[0]
+		conflict_count = len(conflicts)
+		return (
+			f"Warning: Found {conflict_count} scheduling conflict(s). "
+			f"Example at {first['time']}: {first['pet_1']} - {first['task_1']} overlaps with "
+			f"{first['pet_2']} - {first['task_2']}."
+		)
+
+	def detect_time_conflicts(self, owner: Owner) -> List[dict]:
+		"""
+		Detect pairwise task conflicts for tasks that share the same HH:MM value.
+
+		Args:
+			owner: Owner whose pets and tasks are scanned for timed overlaps.
+
+		Returns:
+			A list of conflict dictionaries. Each dictionary includes:
+			- time: normalized HH:MM string
+			- pet_1, task_1: first conflicting task
+			- pet_2, task_2: second conflicting task
+			- same_pet: True if both tasks belong to the same pet
+
+		Algorithm:
+			Single-pass grouping by time. For each timed task, compare against
+			already-seen tasks for that same time and emit conflict pairs.
+		"""
+		conflicts = []
+		tasks_by_time = {}
+
+		for pet in owner.get_pets():
+			for task in pet.get_tasks():
+				task_time = getattr(task, "time", None)
+				if not task_time:
+					continue
+
+				normalized_time = str(task_time).strip()
+				if not normalized_time:
+					continue
+
+				current_item = {
+					"pet": pet.name,
+					"task": task.title,
+					"time": normalized_time,
+				}
+
+				for existing_item in tasks_by_time.get(normalized_time, []):
+					conflicts.append(
+						{
+							"time": normalized_time,
+							"pet_1": existing_item["pet"],
+							"task_1": existing_item["task"],
+							"pet_2": current_item["pet"],
+							"task_2": current_item["task"],
+							"same_pet": existing_item["pet"] == current_item["pet"],
+						}
+					)
+
+				tasks_by_time.setdefault(normalized_time, []).append(current_item)
+
+		return conflicts
 
 	def optimize_plan(self, owner: Owner) -> Plan:
 		"""
@@ -175,6 +310,8 @@ class Scheduler:
 	def _select_tasks(self, tasks: List[Task], time_budget: int) -> List[Task]:
 		"""
 		Greedily select tasks by priority that fit within the time budget.
+		For tasks with equal priority, prefer shorter tasks first so more
+		tasks can fit into the same budget.
 		Returns a list of selected tasks.
 		"""
 		if not tasks:
@@ -217,9 +354,10 @@ class Scheduler:
 		lines.append(f"Remaining time: {remaining_time} minutes")
 
 		# Explain why other high-priority tasks weren't selected
+		selected_task_ids = {id(task) for task in selected_tasks}
 		excluded_high_priority = [
 			t for t in all_tasks
-			if t not in selected_tasks and t.priority >= 4
+			if id(t) not in selected_task_ids and t.priority >= 4
 		]
 
 		if excluded_high_priority:
@@ -246,5 +384,12 @@ class Scheduler:
 		return sum(task.duration_minutes for task in tasks)
 
 	def sort_by_priority(self, tasks: List[Task]) -> List[Task]:
-		"""Return tasks sorted by priority descending (higher first)."""
-		return sorted(tasks, key=lambda task: task.priority, reverse=True)
+		"""Return tasks sorted by priority descending, then duration ascending."""
+		return sorted(tasks, key=lambda task: (-task.priority, task.duration_minutes))
+
+	def sort_by_time(self, tasks: List[Task]) -> List[Task]:
+		"""Return tasks sorted by their time attribute in HH:MM format."""
+		return sorted(
+			tasks,
+			key=lambda task: tuple(int(part) for part in task.time.split(":"))
+		)
