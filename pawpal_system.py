@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta
 from typing import List, Optional
 
 
@@ -70,6 +71,9 @@ class Task:
 		For recurring tasks with frequency "daily" or "weekly", automatically
 		create the next occurrence. If task_collection is provided, that new task
 		is appended to the collection.
+
+		If an optional dynamic due_date attribute exists, this method advances it
+		for the new occurrence: +1 day for daily, +7 days for weekly.
 		"""
 		self.completed = True
 
@@ -89,6 +93,24 @@ class Task:
 		# Preserve optional dynamic HH:MM time if the task has one.
 		if hasattr(self, "time"):
 			next_task.time = self.time
+
+		# Advance optional dynamic due_date for recurring tasks when possible.
+		if hasattr(self, "due_date"):
+			delta_days = 1 if self.frequency.lower() == "daily" else 7
+			due_date_value = getattr(self, "due_date")
+			if isinstance(due_date_value, datetime):
+				next_task.due_date = due_date_value + timedelta(days=delta_days)
+			elif isinstance(due_date_value, date):
+				next_task.due_date = due_date_value + timedelta(days=delta_days)
+			elif isinstance(due_date_value, str):
+				try:
+					parsed = datetime.fromisoformat(due_date_value)
+					next_task.due_date = (parsed + timedelta(days=delta_days)).date().isoformat()
+				except ValueError:
+					# Keep original value when format is unknown.
+					next_task.due_date = due_date_value
+			else:
+				next_task.due_date = due_date_value
 
 		if task_collection is not None:
 			task_collection.append(next_task)

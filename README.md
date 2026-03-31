@@ -31,6 +31,19 @@ Recent scheduler improvements make planning more practical and resilient:
 - Task-time conflict detection catches overlapping tasks across the same pet or different pets.
 - Lightweight conflict handling returns a warning message instead of crashing the program.
 
+## Testing PawPal+
+
+Run the automated test suite with:
+
+```bash
+python -m pytest
+```
+
+These tests cover core scheduler and task behaviors, including priority and time-based sorting,
+time-budget planning, task completion status, recurring-task rollover, conflict detection for
+duplicate time slots, and safe warning behavior when schedule conflicts are found.
+Confidence Level - 4
+
 ## Getting started
 
 ### Setup

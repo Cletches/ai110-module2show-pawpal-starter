@@ -1,5 +1,6 @@
 import pytest
 import sys
+from datetime import date
 from pathlib import Path
 
 # Add parent directory to path so we can import pawpal_system
@@ -119,6 +120,74 @@ class TestTaskCompletion:
         assert task.completed is True
         assert next_task is None
         assert len(task_list) == 1
+
+    def test_mark_completed_monthly_task_does_not_create_next_occurrence(self):
+        """Monthly tasks are currently treated as non-auto-generated recurrences."""
+        # Arrange
+        task = Task(
+            title="Monthly Weight Check",
+            description="Record pet weight",
+            duration_minutes=10,
+            priority=3,
+            category="health",
+            frequency="monthly",
+            completed=False,
+        )
+        task_list = [task]
+
+        # Act
+        next_task = task.mark_completed(task_collection=task_list)
+
+        # Assert
+        assert task.completed is True
+        assert next_task is None
+        assert len(task_list) == 1
+
+    def test_mark_completed_recurring_task_preserves_time(self):
+        """Auto-created recurring task should keep the same HH:MM time value."""
+        # Arrange
+        task = Task(
+            title="Evening Feed",
+            description="Feed dinner",
+            duration_minutes=15,
+            priority=5,
+            category="feeding",
+            frequency="daily",
+            completed=False,
+        )
+        task.time = "18:30"
+        task_list = [task]
+
+        # Act
+        next_task = task.mark_completed(task_collection=task_list)
+
+        # Assert
+        assert next_task is not None
+        assert hasattr(next_task, "time")
+        assert next_task.time == "18:30"
+
+    def test_mark_completed_daily_task_sets_due_date_to_following_day(self):
+        """Daily completion should advance optional due_date by one day."""
+        # Arrange
+        task = Task(
+            title="Daily Meds",
+            description="Give morning medication",
+            duration_minutes=5,
+            priority=5,
+            category="health",
+            frequency="daily",
+            completed=False,
+        )
+        task.due_date = date(2026, 3, 31)
+        task_list = [task]
+
+        # Act
+        next_task = task.mark_completed(task_collection=task_list)
+
+        # Assert
+        assert next_task is not None
+        assert hasattr(next_task, "due_date")
+        assert next_task.due_date == date(2026, 4, 1)
 
 
 class TestTaskAddition:
@@ -387,6 +456,89 @@ class TestScheduler:
         # Assert
         assert conflicts == []
 
+    def test_detect_time_conflicts_three_tasks_same_time_returns_three_pairs(self):
+        """Three tasks in one slot should produce three pairwise conflicts."""
+        # Arrange
+        scheduler = Scheduler()
+        owner = Owner(name="Alex", daily_time_budget=120)
+        pet = Pet(name="Max", species="dog")
+        owner.add_pet(pet)
+
+        task_a = Task(
+            title="Walk",
+            description="Morning walk",
+            duration_minutes=20,
+            priority=5,
+            category="exercise",
+            frequency="daily",
+        )
+        task_b = Task(
+            title="Breakfast",
+            description="Feed breakfast",
+            duration_minutes=10,
+            priority=5,
+            category="feeding",
+            frequency="daily",
+        )
+        task_c = Task(
+            title="Medication",
+            description="Give medicine",
+            duration_minutes=5,
+            priority=5,
+            category="health",
+            frequency="daily",
+        )
+
+        task_a.time = "08:00"
+        task_b.time = "08:00"
+        task_c.time = "08:00"
+        pet.add_task(task_a)
+        pet.add_task(task_b)
+        pet.add_task(task_c)
+
+        # Act
+        conflicts = scheduler.detect_time_conflicts(owner)
+
+        # Assert
+        assert len(conflicts) == 3
+        assert all(conflict["time"] == "08:00" for conflict in conflicts)
+
+    def test_detect_time_conflicts_ignores_blank_or_whitespace_time(self):
+        """Blank/whitespace time values should be ignored, not treated as conflicts."""
+        # Arrange
+        scheduler = Scheduler()
+        owner = Owner(name="Alex", daily_time_budget=120)
+        pet = Pet(name="Max", species="dog")
+        owner.add_pet(pet)
+
+        timed_task = Task(
+            title="Morning Walk",
+            description="Walk around the block",
+            duration_minutes=20,
+            priority=5,
+            category="exercise",
+            frequency="daily",
+        )
+        blank_time_task = Task(
+            title="Toy Cleanup",
+            description="Pick up toys",
+            duration_minutes=10,
+            priority=2,
+            category="other",
+            frequency="daily",
+        )
+
+        timed_task.time = "08:00"
+        blank_time_task.time = "   "
+        pet.add_task(timed_task)
+        pet.add_task(blank_time_task)
+
+        # Act
+        conflicts = scheduler.detect_time_conflicts(owner)
+
+        # Assert
+        assert conflicts == []
+
     def test_sort_by_priority_breaks_ties_with_shorter_duration_first(self):
         """Equal-priority tasks should be sorted shortest duration first."""
         # Arrange
@@ -502,6 +654,66 @@ class TestScheduler:
             "Midday Walk",
             "Evening Groom",
         ]
+
+    def test_sort_by_time_handles_day_boundaries(self):
+        """Sorting by HH:MM should place 00:00 first and 23:59 last."""
+        # Arrange
+        scheduler = Scheduler()
+        late_task = Task(
+            title="Late Check",
+            description="End-of-day check",
+            duration_minutes=5,
+            priority=2,
+            category="health",
+            frequency="daily",
+        )
+        early_task = Task(
+            title="Midnight Feed",
+            description="Very early feed",
+            duration_minutes=10,
+            priority=3,
+            category="feeding",
+            frequency="daily",
+        )
+
+        late_task.time = "23:59"
+        early_task.time = "00:00"
+
+        # Act
+        sorted_tasks = scheduler.sort_by_time([late_task, early_task])
+
+        # Assert
+        assert [t.title for t in sorted_tasks] == ["Midnight Feed", "Late Check"]
+
+    def test_sort_by_time_returns_chronological_order(self):
+        """sort_by_time should return tasks in chronological HH:MM order."""
+        # Arrange
+        scheduler = Scheduler()
+        tasks = []
+
+        for title, hhmm in [
+            ("Evening Walk", "20:30"),
+            ("Early Feed", "06:15"),
+            ("Noon Play", "12:00"),
+            ("Afternoon Nap Check", "15:45"),
+        ]:
+            task = Task(
+                title=title,
+                description="Time-based task",
+                duration_minutes=10,
+                priority=3,
+                category="routine",
+                frequency="daily",
+            )
+            task.time = hhmm
+            tasks.append(task)
+
+        # Act
+        sorted_tasks = scheduler.sort_by_time(tasks)
+
+        # Assert
+        sorted_times = [task.time for task in sorted_tasks]
+        assert sorted_times == ["06:15", "12:00", "15:45", "20:30"]
 
 
 class TestOwnerTaskFiltering:
